@@ -1,0 +1,241 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity infoDisplay is
+port( clk, rst : in std_logic;
+		HEX0, HEX1, HEX2, HEX3, HEX4, HEX5 : out std_logic_vector(6 downto 0)
+		);
+end entity infoDisplay;
+
+architecture controller of infoDisplay is
+	constant clk_freq : integer := 50e6; -- The clock frequency of the DE10-Lite is 50 MHz.
+	-- Having this constant makes it possible to use it later for computations in seconds.
+	
+	-- Below are a number of definitions of constants that can be written directly to the seven
+	-- segment displays. While you wll not need these most of the times, it is often good to 
+	-- have these defines somewhere and then you can bring them into whatever project you want
+	-- later. Feel free to modify the below to your taste.
+	-- When done with all these definitions, you can simply write the constant to the HEX output
+	-- and the LED should light up as designed e.g. HEX0 <= A; should display 'A' on HEX0.
+	constant A : std_logic_vector(6 downto 0) := "0001000";
+	constant b : std_logic_vector(6 downto 0) := "0000011";
+	constant c : std_logic_vector(6 downto 0) := "0100111";
+	constant d : std_logic_vector(6 downto 0) := "0100111";
+	constant E : std_logic_vector(6 downto 0) := "0000110";
+	constant F : std_logic_vector(6 downto 0) := "0001110";
+	
+	constant S : std_logic_vector(6 downto 0) := "0010010";
+	constant W1 : std_logic_vector(6 downto 0) := "1000011";
+	constant W2 : std_logic_vector(6 downto 0) := "1100001";
+	constant n : std_logic_vector(6 downto 0) := "1001000";
+	
+	-- TODO: Fill in as many letters as you can here. Not all letters can really be displayed on a single
+	-- seven-segment display. However, it is possible to display a letter like m and w by making use
+	-- of two adjacent segments e.g. rn reasonably looks like m
+	-- Also, letters s and number 5 are the same and 2 and z can be considered the same. Hence, you
+	-- can write 2 instead of z on the segment and that can work.
+	constant r : std_logic_vector(6 downto 0) := "0101111";
+	constant t : std_logic_vector(6 downto 0) := "0000111";
+	
+	constant blank	: std_logic_vector(6 downto 0) := "1111111";
+	
+	constant zero	: std_logic_vector(6 downto 0) := "1000000";
+	constant one	: std_logic_vector(6 downto 0) := "1111001";
+	constant two	: std_logic_vector(6 downto 0) := "0100100";
+	constant three	: std_logic_vector(6 downto 0) := "0110000";
+	constant four	: std_logic_vector(6 downto 0) := "0011001";
+	constant five	: std_logic_vector(6 downto 0) := "0010010";
+	constant six	: std_logic_vector(6 downto 0) := "0000010";
+	constant seven	: std_logic_vector(6 downto 0) := "1111000";
+	constant eight	: std_logic_vector(6 downto 0) := "0000000";
+	constant nine	: std_logic_vector(6 downto 0) := "0011000";
+	
+	type state is (reset, NS, EW, NN, SS, EE, WW);
+	signal pres_state, next_state : state;
+	
+	signal clk_1Hz : std_logic;
+	
+	constant state0_duration : integer := 3;
+	constant state1_duration : integer := 5;
+	constant state2_duration : integer := 4;
+	constant state3_duration : integer := 5;
+	constant state4_duration : integer := 6;
+	constant state5_duration : integer := 7;
+	constant state6_duration : integer := 8;
+begin
+	-- Process to create 1Hz clock for use in the program.
+	create_1Hz_clk: process(clk, rst)
+	variable cnt : integer range 0 to clk_freq := 0;
+	begin
+		if rst = '0' then
+			cnt := 0;
+		elsif rising_edge(clk) then
+			if cnt >= clk_freq/2 then
+				clk_1Hz <= not clk_1Hz;
+				cnt := 0;
+			else
+				cnt := cnt + 1;
+			end if;
+		end if;
+	end process;
+	
+	
+	
+	
+	-- The FSM below is designed using the three-process method.
+	-- The first process is for ensures that states get updated only on the active clock transitions.
+	-- The second process determines holds the rules that governs what the next state to go to is.
+	-- The third process governs the output rules.
+
+	-- The first process resets the FSM if an active reset signal is received. Otherwise, on every
+	-- active clock transition, it checks what the next state should be and updates the FSM accordingly.
+	sync_state_transition: process(clk, rst)
+	begin
+		if (rst = '0') then
+			pres_state <= reset;
+		elsif rising_edge(clk) then
+			pres_state <= next_state;
+		end if;
+	end process;
+	
+	
+	
+	-- This process controls what the next state will be. Hence, it holds the state transition logic.
+	-- TODO
+	state_transition_logic: process(pres_state, clk_1Hz, rst)
+	variable cnt : integer range 0 to 7 := 0;
+	begin
+		if rst = '0' then
+			cnt := 0; -- to ensure that the counter is reset when reset btn is pressed.
+			next_state <= reset; -- to ensure that the value in next_state is also changed to reset
+			-- if this is not done, the FSM may return to its previous state once the reset
+			-- button is released.
+		elsif rising_edge(clk_1Hz) then -- this is needed only because this FSM used a counter.
+			case pres_state is
+				when reset =>
+					if cnt >= state0_duration then
+						cnt := 0;
+						next_state <= NS;
+					else
+						cnt := cnt + 1;
+						next_state <= reset;
+					end if;
+				
+				
+				when NS =>
+					if cnt >= state1_duration then
+						cnt := 0;
+						next_state <= EW;
+					else
+						cnt := cnt + 1;
+					end if;
+				
+				
+				when EW =>
+					if cnt >= state2_duration then
+						cnt := 0;
+						next_state <= NN;
+					else
+						cnt := cnt + 1;
+					end if;
+				
+				
+				when NN =>
+					if cnt >= state2_duration then
+						cnt := 0;
+						next_state <= SS;
+					else
+						cnt := cnt + 1;
+					end if;
+				
+				
+				when SS =>
+					if cnt >= state2_duration then
+						cnt := 0;
+						next_state <= EE;
+					else
+						cnt := cnt + 1;
+					end if;
+				
+				
+				when EE =>
+					if cnt >= state2_duration then
+						cnt := 0;
+						next_state <= WW;
+					else
+						cnt := cnt + 1;
+					end if;
+				
+				
+				when WW =>
+					if cnt >= state2_duration then
+						cnt := 0;
+						next_state <= NS;
+					else
+						cnt := cnt + 1;
+					end if;
+			end case;
+		end if;
+	end process;
+	
+	
+	
+	-- The third process controls the rules that determine the output in each state.
+	-- This FSM is designed as a MOORE FSM so the outputs here are only dependent on the present state
+	-- Hence, the process sensitivity list only has the present state signal.
+	-- TODO
+	output_logic: process(pres_state)
+	begin
+		case pres_state is
+			when reset =>
+				HEX5 <= r;
+				HEX4 <= E;
+				HEX3 <= five;
+				HEX2 <= E;
+				HEX1 <= t;
+				HEX0 <= blank;
+			when NS =>
+				HEX5 <= n;
+				HEX4 <= S;
+				HEX3 <= blank;
+				HEX2 <= blank;
+				HEX1 <= blank;
+				HEX0 <= blank;
+			when EW =>
+				HEX5 <= E;
+				HEX4 <= W1;
+				HEX3 <= W2;
+				HEX2 <= blank;
+				HEX1 <= blank;
+				HEX0 <= blank;
+			when NN =>
+				HEX5 <= n;
+				HEX4 <= E;
+				HEX3 <= blank;
+				HEX2 <= n;
+				HEX1 <= W1;
+				HEX0 <= W2;
+			when SS =>
+				HEX5 <= S;
+				HEX4 <= W1;
+				HEX3 <= W2;
+				HEX2 <= blank;
+				HEX1 <= S;
+				HEX0 <= E;
+			when EE =>
+				HEX5 <= E;
+				HEX4 <= n;
+				HEX3 <= blank;
+				HEX2 <= blank;
+				HEX1 <= E;
+				HEX0 <= S;
+			when WW =>
+				HEX5 <= W1;
+				HEX4 <= W2;
+				HEX3 <= n;
+				HEX2 <= W1;
+				HEX1 <= W2;
+				HEX0 <= S;
+		end case;
+	end process;
+end architecture controller;
